@@ -7,42 +7,67 @@ stores cleaned records in SQLite, and exports an Excel master file.
 The repository contains synthetic sample data only. No operational data is
 included.
 
-## Process
+## How it works
 
-Each monthly input is:
+```text
+Monthly Excel export
+   |
+   v
+  add_month.py
+   |
+   v
+ Clean and standardize text
+   |
+   v
+ Match equipment codes and asset numbers
+   |
+   v
+ Classify equipment and defect details
+   |
+   v
+ Validate the cleaned records
+   |
+   v
+ Add new records to data/output/defects.db
+   |
+   v
+ Write data/output/EDR_MASTER.xlsx
+```
 
-1. Standardized for text and source column names.
-2. Reconciled using equipment codes and asset numbers.
-3. Classified by equipment type, problem area, failure mode, and record class.
-4. Split into defect, non-defect, and routine inspection records.
-5. Validated before loading.
-6. Merged into SQLite using a composite key.
-7. Exported to Excel with summary tables.
+The database keeps the accumulated records. The Excel workbook is regenerated
+after every successful run.
 
-Rows with missing or conflicting equipment identifiers are retained and marked
-for review. Duplicate records are skipped when a month is rerun.
+## What you need to do
 
-## Setup and usage
+### First run
 
-Install the dependencies:
+1. Install Python.
+2. Open a terminal in this project folder.
+3. Install the project dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Generate sample exports if needed:
+If you are using the included sample data, generate the monthly files:
 
 ```bash
 python generate_sample_data.py
 ```
 
-Process one month:
+### Each month
+
+Put the new Excel export in `data/sample_raw/`, then run one command. For
+example:
 
 ```bash
 python add_month.py data/sample_raw/sample_raw_2026_01.xlsx
 ```
 
-Process all bundled sample months:
+Replace the filename with the new month. The command adds that month to the
+existing master; it does not replace earlier months.
+
+To process all bundled sample months in order:
 
 ```bash
 for file in data/sample_raw/sample_raw_*.xlsx; do
@@ -50,10 +75,22 @@ for file in data/sample_raw/sample_raw_*.xlsx; do
 done
 ```
 
-Generated files are written to `data/output/`:
+### Results
+
+After the command finishes, open these files:
 
 - `defects.db`: SQLite master database.
 - `EDR_MASTER.xlsx`: master records and summary tables.
+
+The command also prints validation results, inserted rows, duplicate rows, and
+records that need equipment ID review.
+
+## Why use the terminal?
+
+This project is a Python script rather than a desktop application. The
+terminal is the control panel: you provide the input filename, and the script
+does the cleaning, validation, database update, and Excel export. You do not
+need to run each internal step separately.
 
 ## Repository structure
 
