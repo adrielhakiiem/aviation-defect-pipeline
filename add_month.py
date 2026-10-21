@@ -1,7 +1,7 @@
 """
-add_month.py  --  The ONE command a new intern runs each month.
+Monthly pipeline entry point.
 
-Give it next month's raw export. It will:
+Given a raw export, this script will:
     1. clean + classify the new records   (pipeline.py)
     2. check the result is sane            (validate.py)
     3. merge into the running master, skipping any rows already there
@@ -51,7 +51,7 @@ def add_month(raw_path: str) -> None:
     out = database.export_master(conn)
     conn.close()
 
-    # QA for the operator
+    # Print the quality summary and merge counts.
     print("\n--- This month ---")
     print(result["qa"].to_string(index=False))
     print(f"\n   new rows inserted : {counts['inserted']}")

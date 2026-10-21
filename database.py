@@ -28,7 +28,7 @@ import config
 DB_PATH = Path("data/output/defects.db")
 TABLE = "defects"
 
-# Column name -> SQLite type. 'record_key' is the composite primary key.
+# SQLite type for each column. record_key is the composite primary key.
 SCHEMA = {
     "record_key": "TEXT PRIMARY KEY",
     "Permit No": "TEXT",
@@ -91,7 +91,7 @@ def merge_records(conn: sqlite3.Connection, master: pd.DataFrame) -> dict:
     rows = [tuple(None if pd.isna(r.get(c)) else r.get(c) for c in ordered)
             for _, r in df.iterrows()]
 
-    # INSERT OR IGNORE -> existing composite keys are left untouched.
+    # Keep existing records when the composite key is already present.
     conn.executemany(
         f"INSERT OR IGNORE INTO {TABLE} ({col_sql}) VALUES ({placeholders})",
         rows,
@@ -113,9 +113,7 @@ def load_master(conn: sqlite3.Connection) -> pd.DataFrame:
     return df.drop(columns=["record_key"], errors="ignore")
 
 
-# ---------------------------------------------------------------------------
-# Analytical queries (examples -- extend as needed)
-# ---------------------------------------------------------------------------
+# Summary queries exported with the master table.
 QUERIES = {
     "defects_by_equipment_type": f"""
         SELECT "Equipment Type", COUNT(*) AS defects

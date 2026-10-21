@@ -1,8 +1,7 @@
 """
-config.py  --  All business rules for the aviation defect pipeline, in one place.
+Business rules for the aviation defect pipeline.
 
-This is the ONLY file you need to edit to tune how raw records are classified.
-No Python knowledge beyond editing lists/dictionaries is required:
+Edit the lists and dictionaries in this file to change classification rules:
 
   * To add a keyword rule, add a line to the relevant list.
   * Rules are checked TOP-TO-BOTTOM; the FIRST keyword found in the text wins,
@@ -14,9 +13,7 @@ No Python knowledge beyond editing lists/dictionaries is required:
 Column meanings are documented in docs/DATA_DICTIONARY.md.
 """
 
-# ---------------------------------------------------------------------------
-# 1. SOURCE / OUTPUT COLUMN NAMES
-# ---------------------------------------------------------------------------
+# Source and output column names.
 # Rename here if your raw export uses different headers.
 RAW_COLUMNS = {
     "permit_no":        "Permit No.",
@@ -35,9 +32,7 @@ RAW_COLUMNS = {
 # key is Date + Equipment No + Defect text -- NOT equipment number alone.
 COMPOSITE_KEY = ["Date", "Equipment ID", "Defects Description"]
 
-# ---------------------------------------------------------------------------
-# 2. EQUIPMENT TYPE RULES   (Asset Description  ->  Equipment Type)
-# ---------------------------------------------------------------------------
+# Equipment type rules.
 # First keyword found wins, so specific terms are listed before general ones.
 EQUIPMENT_TYPE_RULES = [
     ("ASU",                     "Air Start Unit"),
@@ -114,9 +109,7 @@ EQUIPMENT_TYPE_RULES = [
 # Value used when no Equipment Type rule matches (surfaced for review, not guessed).
 EQUIPMENT_TYPE_UNMATCHED = "Unclassified"
 
-# ---------------------------------------------------------------------------
-# 3. MOTORIZED / NON-MOTORIZED   (derived from Equipment Type)
-# ---------------------------------------------------------------------------
+# Motorized and non-motorized equipment types.
 # Any Equipment Type not listed here defaults to "Motorized".
 NON_MOTORIZED_TYPES = {
     "Baggage Trolley",
@@ -127,9 +120,7 @@ NON_MOTORIZED_TYPES = {
     "Wireless Headset",
 }
 
-# ---------------------------------------------------------------------------
-# 4. PROBLEM AREA RULES   (Defects Description  ->  Problem Area)
-# ---------------------------------------------------------------------------
+# Problem area rules.
 PROBLEM_AREA_RULES = [
     ('TYRE', 'Tyres & Wheels'),
     ('TIRE', 'Tyres & Wheels'),
@@ -396,9 +387,7 @@ PROBLEM_AREA_RULES = [
 ]
 PROBLEM_AREA_UNMATCHED = "Breakdown – Cause Not Recorded"
 
-# ---------------------------------------------------------------------------
-# 5. FAILURE MODE RULES   (Defects Description  ->  Failure Mode)
-# ---------------------------------------------------------------------------
+# Failure mode rules.
 FAILURE_MODE_RULES = [
     ('ACCIDENT', 'Accident / Impact'),
     ('HIT', 'Accident / Impact'),
@@ -446,16 +435,12 @@ FAILURE_MODE_RULES = [
 ]
 FAILURE_MODE_UNMATCHED = "Not Specified"
 
-# ---------------------------------------------------------------------------
-# 6. INSPECTION KEYWORDS   (Record Class: routine inspection vs real defect)
-# ---------------------------------------------------------------------------
+# Inspection keywords.
 INSPECTION_KEYWORDS = ['INSPECTION', 'FULL INSP', 'PMC', 'SERVICING', 'LOAD TEST', 'LOADTEST']
 RECORD_CLASS_DEFECT = "Defect"
 RECORD_CLASS_INSPECTION = "Defect Found at Inspection"
 
-# ---------------------------------------------------------------------------
-# 7. NON-DEFECT RULES   (rows that are ops support / admin, not real defects)
-# ---------------------------------------------------------------------------
+# Non-defect rules.
 # Rows whose Problem Area resolves to this value are moved to a review sheet
 # and excluded from the defect master.
 NON_DEFECT_AREA = "Non-Defect (Ops Support / Permit)"
@@ -465,9 +450,7 @@ NON_DEFECT_WORK_ORDER_TYPES = {
     "Projects",
 }
 
-# ---------------------------------------------------------------------------
-# 8. SPELLING MAP   (fix common typos in free text before classifying)
-# ---------------------------------------------------------------------------
+# Spelling corrections.
 # Applied as whole-word replacements, case-insensitive.
 # Add any recurring misspelling you spot. Left = wrong, Right = correct.
 SPELLING_MAP = {
@@ -494,9 +477,7 @@ SPELLING_MAP = {
     "BATERI": "BATTERY",
 }
 
-# ---------------------------------------------------------------------------
-# 9. EQUIPMENT ID OVERRIDES   (persistent manual corrections)
-# ---------------------------------------------------------------------------
+# Equipment ID overrides.
 # When Equipment Code and Asset Number genuinely conflict and you have
 # confirmed the correct ID, record it here so the fix survives every rerun.
 #   "<raw equipment code or asset number>": "<correct Equipment ID>",

@@ -28,9 +28,7 @@ import pandas as pd
 import config
 
 
-# ---------------------------------------------------------------------------
-# Keyword matching helper (shared by every classification rule)
-# ---------------------------------------------------------------------------
+# Shared keyword matching helpers.
 def _rule_to_regex(keyword: str) -> re.Pattern:
     """Turn a keyword rule into a compiled regex.
 
@@ -63,9 +61,7 @@ def contains_any(text: str, keywords) -> bool:
     return any(_rule_to_regex(k).search(upper) for k in keywords)
 
 
-# ---------------------------------------------------------------------------
-# Stage 1 -- text standardisation
-# ---------------------------------------------------------------------------
+# Stage 1: standardize text.
 def normalise_whitespace(value):
     if not isinstance(value, str):
         return value
@@ -81,9 +77,7 @@ def apply_spelling_map(text):
     return out
 
 
-# ---------------------------------------------------------------------------
-# Stage 2 -- equipment code + clean description
-# ---------------------------------------------------------------------------
+# Stage 2: extract the equipment code and defect description.
 def split_description(description):
     """Split '<code> - <defect text>' into (equipment_code, defect_text).
 
@@ -98,9 +92,7 @@ def split_description(description):
     return (code or None), defect.strip()
 
 
-# ---------------------------------------------------------------------------
-# Stage 3 -- Equipment ID reconciliation
-# ---------------------------------------------------------------------------
+# Stage 3: reconcile equipment identifiers.
 def _norm_id(value):
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return None
@@ -135,9 +127,7 @@ def reconcile_equipment_id(equipment_code, asset_number):
     return None, "Missing"
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 -- classification
-# ---------------------------------------------------------------------------
+# Stage 4: classify records.
 def classify_equipment_type(asset_desc):
     return first_match(asset_desc, config.EQUIPMENT_TYPE_RULES,
                        config.EQUIPMENT_TYPE_UNMATCHED)
@@ -161,9 +151,7 @@ def classify_failure_mode(defect_text):
                        config.FAILURE_MODE_UNMATCHED)
 
 
-# ---------------------------------------------------------------------------
-# Orchestration
-# ---------------------------------------------------------------------------
+# Pipeline orchestration.
 # Final column order of the cleaned master.
 MASTER_COLUMNS = [
     "Permit No", "Work Status", "Equipment Code", "Asset Number",
@@ -188,24 +176,24 @@ def run_pipeline(raw: pd.DataFrame) -> dict:
 
     stats = {"rows_read": len(df)}
 
-    # Stage 1 ---------------------------------------------------------------
+    # Standardize text.
     for text_col in ["description", "asset_desc", "work_status",
                      "work_order_type", "work_order_trade", "action_taken"]:
         if text_col in df:
             df[text_col] = df[text_col].map(normalise_whitespace)
     df["description"] = df["description"].map(apply_spelling_map)
 
-    # Stage 2 ---------------------------------------------------------------
+    # Extract equipment codes and descriptions.
     split = df["description"].map(split_description)
     df["Equipment Code"] = [s[0] for s in split]
     df["Defects Description"] = [s[1] for s in split]
 
-    # Dates
+    # Parse dates.
     df["Date"] = pd.to_datetime(df["received_date"], errors="coerce").dt.normalize()
     df["By Month"] = df["Date"].dt.strftime("%B")
     stats["missing_or_unparsed_dates"] = int(df["Date"].isna().sum())
 
-    # Stage 3 ---------------------------------------------------------------
+    # Reconcile equipment identifiers.
     recon = [reconcile_equipment_id(c, a)
              for c, a in zip(df["Equipment Code"], df["asset_number"])]
     df["Equipment ID"] = [r[0] for r in recon]
@@ -215,25 +203,24 @@ def run_pipeline(raw: pd.DataFrame) -> dict:
         stats[f"equipment_id: {status}"] = int(
             (df["Equipment ID Status"] == status).sum())
 
-    # Stage 4 ---------------------------------------------------------------
+    # Classify records.
     df["Equipment Type"] = df["asset_desc"].map(classify_equipment_type)
     df["Motorized/Non-Motorized"] = df["Equipment Type"].map(classify_motorized)
     df["Problem Area"] = df["Defects Description"].map(classify_problem_area)
     df["Failure Mode"] = df["Defects Description"].map(classify_failure_mode)
 
-    # Does the defect text describe a real, classified problem?
+    # Check whether the description contains a classified problem.
     has_inspection_kw = df["Defects Description"].map(
         lambda t: contains_any(t, config.INSPECTION_KEYWORDS))
     problem_matched = ~df["Problem Area"].isin(
         [config.PROBLEM_AREA_UNMATCHED, config.NON_DEFECT_AREA])
 
-    # Record Class: an inspection that surfaced a real defect is kept and
-    # labelled; a routine inspection with no defect is separated out (below).
+    # Keep inspections that contain a real defect; separate routine inspections.
     df["Record Class"] = config.RECORD_CLASS_DEFECT
     df.loc[has_inspection_kw & problem_matched, "Record Class"] = \
         config.RECORD_CLASS_INSPECTION
 
-    # Tidy source column names onto the master schema
+    # Rename source columns to the master schema.
     df = df.rename(columns={
         "permit_no": "Permit No", "work_status": "Work Status",
         "asset_number": "Asset Number", "asset_desc": "Asset Description",
@@ -241,13 +228,12 @@ def run_pipeline(raw: pd.DataFrame) -> dict:
         "work_order_trade": "Work Order Trade", "action_taken": "Action Taken",
     })
 
-    # Stage 5 -- separate rows that are not equipment defects ---------------
-    # (a) Non-defect ops-support / admin rows.
+    # Separate non-defect operations and administrative rows.
     is_non_defect = (
         (df["Problem Area"] == config.NON_DEFECT_AREA)
         | (df["Work Order Type"].isin(config.NON_DEFECT_WORK_ORDER_TYPES))
     )
-    # (b) Routine inspections / servicing with no actual defect described.
+    # Separate routine inspections and servicing with no defect.
     is_routine_inspection = has_inspection_kw & ~problem_matched & ~is_non_defect
 
     non_defects = df[is_non_defect].copy()
@@ -257,15 +243,13 @@ def run_pipeline(raw: pd.DataFrame) -> dict:
     stats["non_defect_rows_removed"] = int(len(non_defects))
     stats["routine_inspection_rows_removed"] = int(len(inspection_removed))
 
-    # Collapse exact duplicate records (same composite key) within this file.
-    # The same equipment can appear many times a day with DIFFERENT defects
-    # (kept); identical Date + Equipment ID + Defect rows are true duplicates.
+    # Remove duplicate composite keys within this file.
     key = master[config.COMPOSITE_KEY].astype(str).apply(
         lambda r: "||".join(r.str.upper()), axis=1)
     stats["duplicate_rows_collapsed"] = int(key.duplicated().sum())
     master = master[~key.duplicated()].copy()
 
-    # Review table: anything that needs a human eye on the Equipment ID.
+    # Keep records that need equipment ID review.
     id_review = master[master["Equipment ID Status"].isin(["Conflict", "Missing"])].copy()
 
     master = master[MASTER_COLUMNS].reset_index(drop=True)

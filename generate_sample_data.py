@@ -1,9 +1,7 @@
 """
-generate_sample_data.py  --  Create realistic but 100% FAKE raw defect exports.
+Generate synthetic raw defect exports.
 
-No real operational data is used. The generator reproduces the *shape* and
-*messiness* of a real ground-support-equipment export so the pipeline can be
-demonstrated and practised on safely:
+The generator creates sample ground-support-equipment data with:
 
     * same 9 raw columns
     * equipment identifier embedded in the description prefix
@@ -26,7 +24,7 @@ import pandas as pd
 
 OUT_DIR = Path("data/sample_raw")
 
-# (asset_description, equipment_code_style)  grouped so classification varies.
+# Asset descriptions and equipment code formats.
 FLEET = [
     ("ACFT NB TUG (B737-800)", "num"),
     ("NARROW BODY AIRCRAFT TRACTOR-F180", "num"),
@@ -55,7 +53,7 @@ FLEET = [
     ("FORKLIFT", "num"),
 ]
 
-# defect phrasings grouped loosely by the problem they should classify into.
+# Defect descriptions grouped by classification.
 DEFECTS = [
     "TYRE REAR RIGHT PUNCTURED (NON NEGLIGENCE) LOC A{loc}",
     "FRONT TYRE WORNOUT NEED REPLACEMENT",
@@ -82,7 +80,7 @@ DEFECTS = [
     " wiring short circuit intermittent",            # messy casing
 ]
 
-# Routine inspections with NO actual defect -> separated to "Inspection Removed".
+# Routine inspections are separated from defect records.
 ROUTINE_INSPECTIONS = [
     "FULL INSPECTION - PMC MONTHLY CHECK",
     "ANNUAL LOAD TEST CERTIFICATION",
@@ -112,7 +110,7 @@ def _equipment_code(style: str, rng: random.Random) -> str:
     if style == "plate":
         letters = "".join(rng.choice("ABCDEFGHJKLMNPQRSTVWXYZ") for _ in range(3))
         return f"{letters} 8291"
-    return str(rng.randint(10000, 10999))          # numeric asset code
+    return str(rng.randint(10000, 10999))
 
 
 def _permit(seq: int, year: int, rng: random.Random) -> str:
@@ -128,33 +126,28 @@ def generate_month(year: int, month: int, n_rows: int, rng: random.Random,
             n=rng.randint(1, 13), k=rng.choice([90, 140, 180]))
         code = _equipment_code(style, rng)
 
-        # Choose record flavour. Proportions are tuned so the cleaned master
-        # ends up near ~45% of raw (matching a real GSE export: lots of routine
-        # inspections and ops-support rows get separated out).
         roll = rng.random()
-        if roll < 0.25:                                  # non-defect ops support
+        if roll < 0.25:
             defect = rng.choice(NON_DEFECTS)
             wot = "Projects"
-        elif roll < 0.58:                                # inspection / servicing
+        elif roll < 0.58:
             wot = "Inspection"
-            if rng.random() < 0.12:                      # found a real defect
+            if rng.random() < 0.12:
                 defect = "INSPECTION - FOUND " + \
                     rng.choice(DEFECTS).format(loc=rng.randint(1, 60))
-            else:                                        # routine, no defect
+            else:
                 defect = rng.choice(ROUTINE_INSPECTIONS)
-        else:                                            # genuine breakdown
+        else:
             defect = rng.choice(DEFECTS).format(loc=rng.randint(1, 60))
             wot = rng.choice(WORK_ORDER_TYPE[:3])
 
         description = f"{code}. - {defect}"
 
-        # asset number: usually matches code, sometimes missing, sometimes a
-        # KLIA-prefixed conflict (to exercise reconciliation).
         r2 = rng.random()
         if r2 < 0.12:
-            asset_number = None                      # missing -> flagged
+            asset_number = None
         elif r2 < 0.18:
-            asset_number = f"KUL{rng.randint(1000, 9999)}"   # KLIA conflict
+            asset_number = f"KUL{rng.randint(1000, 9999)}"
         else:
             asset_number = code
 
@@ -177,7 +170,7 @@ def generate_month(year: int, month: int, n_rows: int, rng: random.Random,
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Generate fake raw defect exports.")
+    ap = argparse.ArgumentParser(description="Generate synthetic raw defect exports.")
     ap.add_argument("--months", nargs="+",
                     default=["2026-01", "2026-02", "2026-03", "2026-04",
                              "2026-05", "2026-06", "2026-07", "2026-08"],
