@@ -1,0 +1,24 @@
+# ---- Real / private data -- NEVER commit operational data ----
+# Only the synthetic sample files under data/sample_raw/ are tracked.
+data/output/
+*.db
+
+# Any real export dropped in locally
+EDR_*.xls
+EDR_*.xlsx
+*_REAL*.xls*
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
